@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAVE FOOTBALL - Google Sheets 테스트</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#111214;color:#fff;font-family:Arial,"Noto Sans KR",sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:50px 24px}
+  h1{font-size:28px;margin:0 0 10px}
+  .sub{color:#999;margin-bottom:28px}
+  .status{padding:14px 16px;border-radius:10px;background:#1b1d21;margin-bottom:18px}
+  .ok{color:#72d68a}.err{color:#ff7b7b}.loading{color:#ffd166}
+  input{width:100%;padding:16px 18px;border:1px solid #303238;border-radius:10px;background:#1b1d21;color:#fff;font-size:16px;outline:none}
+  input:focus{border-color:#6d75ff}
+  .results{margin-top:18px;display:grid;gap:10px}
+  .card{background:#1b1d21;border:1px solid #292b30;border-radius:10px;padding:16px}
+  .name{font-size:18px;font-weight:700}.meta{color:#999;margin-top:6px;font-size:14px}
+  .empty{color:#888;padding:20px 0}
+  button{margin-top:12px;padding:10px 14px;border:0;border-radius:8px;background:#6d75ff;color:white;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>WAVE FOOTBALL</h1>
+  <div class="sub">Google Sheets 연결 테스트 — 선수 시트</div>
+
+  <div id="status" class="status loading">Google Sheets에서 선수 데이터를 불러오는 중...</div>
+
+  <input id="search" type="text" placeholder="선수명을 검색하세요. 예: 라야, Saka">
+
+  <div id="results" class="results"></div>
+</div>
+
+<script>
+const SHEET_ID = "11FaYvh3o4v-qkKbaLWcUgQYAAeXidX0rx6m3NsnRnY8";
+const SHEET_NAME = "선수";
+
+let players = [];
+
+function setStatus(message, type) {
+  const el = document.getElementById("status");
+  el.textContent = message;
+  el.className = "status " + type;
+}
+
+function parseGviz(text) {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end < 0) throw new Error("Google Sheets 응답을 읽을 수 없습니다.");
+  const data = JSON.parse(text.slice(start, end + 1));
+  const cols = data.table.cols.map(c => c.label || "");
+  return data.table.rows.map(row => {
+    const obj = {};
+    cols.forEach((col, i) => {
+      obj[col] = row.c && row.c[i] && row.c[i].v != null ? String(row.c[i].v) : "";
+    });
+    return obj;
+  });
+}
+
+async function loadPlayers() {
+  // CORS/파일 직접 실행 문제를 피하기 위해 JSONP 형태의 gviz endpoint 사용
+  const url =
+    "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
+    "/gviz/tq?tqx=out:json&sheet=" + encodeURIComponent(SHEET_NAME);
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    const text = await response.text();
+    players = parseGviz(text);
+
+    setStatus("Google Sheets 연결 성공 · " + players.length + "명의 데이터를 불러왔습니다.", "ok");
+    render([]);
+  } catch (e) {
+    console.error(e);
+    setStatus(
+      "연결하지 못했습니다. 파일을 더블클릭해서 연 경우 브라우저의 보안 제한일 수 있습니다. 오류: " + e.message,
+      "err"
+    );
+  }
+}
+
+function getValue(obj, names) {
+  for (const name of names) {
+    if (obj[name] !== undefined) return obj[name];
+  }
+  return "";
+}
+
+function render(list) {
+  const box = document.getElementById("results");
+  if (!list.length) {
+    box.innerHTML = '<div class="empty">검색어를 입력하면 선수 결과가 표시됩니다.</div>';
+    return;
+  }
+
+  box.innerHTML = list.slice(0, 50).map(p => {
+    const name = getValue(p, ["한글 선수명","선수명","한글 풀네임"]);
+    const roman = getValue(p, ["로마자 이름","로마자 풀네임"]);
+    const pos = getValue(p, ["포지션"]);
+    const team = getValue(p, ["팀","클럽명"]);
+    const nation = getValue(p, ["국적"]);
+    return `
+      <div class="card">
+        <div class="name">${escapeHtml(name || roman || "이름 없음")}</div>
+        <div class="meta">
+          ${escapeHtml([roman, pos, team, nation].filter(Boolean).join(" · "))}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+document.getElementById("search").addEventListener("input", e => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) return render([]);
+  const found = players.filter(p =>
+    Object.values(p).some(v => String(v).toLowerCase().includes(q))
+  );
+  render(found);
+});
+
+loadPlayers();
+</script>
+</body>
+</html>
