@@ -127,14 +127,14 @@ function parseLeagueGviz(text){
   });
 }
 
-async async function loadLeaguesSheet(){
+async async async function loadLeaguesSheet(){
   const url="https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?tqx=out:json&sheet="+encodeURIComponent(SHEETS.leagues)+"&range=A:C";
   const r=await fetch(url);
   if(!r.ok) throw new Error("HTTP "+r.status);
   return parseLeagueGviz(await r.text());
 }
 
-async function loadClubsSheet(){
+async async function loadClubsSheet(){
   const u=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEETS.clubs)}&tqx=out:json`;
   const r=await fetch(u);
   if(!r.ok)throw new Error(`클럽 HTTP ${r.status}`);
@@ -388,8 +388,9 @@ function openLeague(league){
   const country=val(row,["국가"]);
   const photo=val(row,["사진"]);
 
-  $("home").style.display="none";
-  $("detail").style.display="block";
+  const home=$("homeView"), detail=$("detail");
+  home.classList.add("hidden");
+  detail.classList.add("show");
 
   const leagueClubs=clubs
     .filter(c=>val(c,["리그"]).trim()===String(league).trim())
