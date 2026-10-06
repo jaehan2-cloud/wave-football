@@ -102,10 +102,10 @@ async function loadData(){
     loadStatsSheet(),
     loadSheet(SHEETS.transfers),
     loadSheet(SHEETS.youth)
-    loadSheet(SHEETS.leagues)
+    loadSheet(SHEETS.leagues),
   ]);
-  const names=["선수","스탯","이적","유스"];
-  const values=[players,stats,transfers,youth];
+const names=["선수","스탯","이적","유스","리그"];
+const values=[players,stats,transfers,youth,leagues];
   results.forEach((res,i)=>{
     if(res.status==="fulfilled") values[i]=res.value;
     else console.error(names[i]+" 시트 불러오기 실패:",res.reason);
