@@ -69,8 +69,8 @@ body{min-width:0;overflow-x:hidden}button,input{font:inherit}button{color:inheri
 </div>
 <script>
 const SHEET_ID="11FaYvh3o4v-qkKbaLWcUgQYAAeXidX0rx6m3NsnRnY8";
-const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스",leagues:"리그",clubs:"클럽"};
-let players=[],stats=[],transfers=[],youth=[],leagues=[],clubs=[],searchType="all",currentPlayer=null;
+const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스",leagues:"리그"};
+let players=[],stats=[],transfers=[],youth=[],leagues=[],searchType="all",currentPlayer=null;
 const $=id=>document.getElementById(id);
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
 function val(o,names){for(const n of names)if(o[n]!==undefined&&String(o[n]).trim()!=="")return String(o[n]);return ""}
@@ -127,32 +127,32 @@ function parseLeagueGviz(text){
   });
 }
 
-async async async function loadLeaguesSheet(){
+async function loadLeaguesSheet(){
   const url="https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?tqx=out:json&sheet="+encodeURIComponent(SHEETS.leagues)+"&range=A:C";
   const r=await fetch(url);
   if(!r.ok) throw new Error("HTTP "+r.status);
   return parseLeagueGviz(await r.text());
 }
 
-async async function loadClubsSheet(){
-  const u=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEETS.clubs)}&tqx=out:json`;
-  const r=await fetch(u);
-  if(!r.ok)throw new Error(`클럽 HTTP ${r.status}`);
-  const d=JSON.parse((await r.text()).replace(/^[^({]*/, "").replace(/;\s*$/, ""));
+
+async function loadClubsForLeaguePage(){
+  const url="https://docs.google.com/spreadsheets/d/"+SHEET_ID+
+    "/gviz/tq?tqx=out:json&sheet="+encodeURIComponent("클럽");
+  const r=await fetch(url);
+  if(!r.ok) throw new Error("클럽 HTTP "+r.status);
+  const text=await r.text();
+  const a=text.indexOf("{"), b=text.lastIndexOf("}");
+  if(a<0 || b<0) throw new Error("클럽 시트 응답 오류");
+  const d=JSON.parse(text.slice(a,b+1));
   return (d.table.rows||[]).map(row=>{
     const c=row.c||[];
     return {
-      "클럽명":cellValue(c[0]),
-      "리그":cellValue(c[1]),
-      "국가":cellValue(c[2])
+      "클럽명": c[0]?.v!=null ? String(c[0].v) : "",
+      "리그": c[1]?.v!=null ? String(c[1].v) : "",
+      "국가": c[2]?.v!=null ? String(c[2].v) : ""
     };
-  }).filter(row=>{
-    const name=row["클럽명"].trim();
-    const league=row["리그"].trim();
-    return !(name==="클럽명" && league==="리그");
-  });
+  }).filter(x=>x["클럽명"] && x["클럽명"]!=="클럽명");
 }
-
 
 async function loadData(){
   const results=await Promise.allSettled([
@@ -160,16 +160,15 @@ async function loadData(){
     loadStatsSheet(),
     loadSheet(SHEETS.transfers),
     loadSheet(SHEETS.youth),
-    loadLeaguesSheet(),
-    loadClubsSheet()
+    loadLeaguesSheet()
   ]);
-  const names=["선수","스탯","이적","유스","리그","클럽"];
-  const values=[players,stats,transfers,youth,leagues,clubs];
+  const names=["선수","스탯","이적","유스","리그"];
+  const values=[players,stats,transfers,youth,leagues];
   results.forEach((res,i)=>{
     if(res.status==="fulfilled") values[i]=res.value;
     else console.error(names[i]+" 시트 불러오기 실패:",res.reason);
   });
-  [players,stats,transfers,youth,leagues,clubs]=values;
+  [players,stats,transfers,youth,leagues]=values;
   const failed=results.map((r,i)=>r.status==="rejected"?names[i]:"").filter(Boolean);
   $("status").textContent=`Google Sheets 연결 · 리그 ${countUnique(players,["리그","리그명"])}개 · 클럽 ${countUnique(players,["팀","클럽명"])}팀 · 선수 ${players.length}명`;
   $("status").style.color=failed.length?"#e8c56a":"var(--good)";
@@ -381,20 +380,40 @@ function openLeagueList(){
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
-function openLeague(league){
+async function openLeague(league){
   const row=leagues.find(l=>val(l,["리그명"]).trim()===String(league).trim());
   if(!row)return;
 
   const country=val(row,["국가"]);
   const photo=val(row,["사진"]);
 
-  const home=$("homeView"), detail=$("detail");
-  home.classList.add("hidden");
-  detail.classList.add("show");
+  $("home").style.display="none";
+  $("detail").style.display="block";
 
-  const leagueClubs=clubs
-    .filter(c=>val(c,["리그"]).trim()===String(league).trim())
-    .sort((a,b)=>val(a,["클럽명"]).localeCompare(val(b,["클럽명"]),"ko"));
+  let leagueClubs=[];
+  try{
+    const allClubs=await loadClubsForLeaguePage();
+    leagueClubs=allClubs.filter(c=>
+      c["리그"].trim()===String(league).trim()
+    );
+  }catch(e){
+    console.error("클럽 시트 로드 실패:",e);
+  }
+
+  // If the club sheet cannot be read, preserve the old working behavior.
+  if(!leagueClubs.length){
+    const seen=new Set();
+    leagueClubs=players
+      .filter(p=>val(p,["리그","리그명"]).trim()===String(league).trim())
+      .map(p=>({
+        "클럽명":val(p,["팀","클럽명"]).trim(),
+        "리그":val(p,["리그","리그명"]).trim(),
+        "국가":country
+      }))
+      .filter(c=>c["클럽명"] && !seen.has(c["클럽명"]) && (seen.add(c["클럽명"]),true));
+  }
+
+  leagueClubs.sort((a,b)=>a["클럽명"].localeCompare(b["클럽명"],"ko"));
 
   $("detail").innerHTML=`
     <div class="player-hero">
@@ -407,19 +426,14 @@ function openLeague(league){
     <div class="league-detail-section">
       <div class="section-title">소속 클럽 · ${leagueClubs.length}팀</div>
       <div class="results">
-        ${leagueClubs.length ? leagueClubs.map(c=>{
-          const name=val(c,["클럽명"]);
-          const clubLeague=val(c,["리그"]);
-          const clubCountry=val(c,["국가"]);
-          return `
-            <div class="result" onclick="openClub('${esc(name)}')">
-              <div>
-                <b>${esc(name)}</b>
-                <div class="result-meta">${esc(clubLeague)} · ${esc(clubCountry)}</div>
-              </div>
+        ${leagueClubs.length ? leagueClubs.map(c=>`
+          <div class="result" onclick="openClub('${esc(c["클럽명"])}')">
+            <div>
+              <b>${esc(c["클럽명"])}</b>
+              <div class="result-meta">${esc(c["리그"])} · ${esc(c["국가"])}</div>
             </div>
-          `;
-        }).join("") : `<div class="empty">이 리그에 등록된 클럽이 없습니다.</div>`}
+          </div>
+        `).join("") : `<div class="empty">이 리그에 등록된 클럽이 없습니다.</div>`}
       </div>
     </div>
   `;
