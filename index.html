@@ -42,6 +42,7 @@ body{min-width:0;overflow-x:hidden}button,input{font:inherit}button{color:inheri
 <div class="app">
 <aside class="sidebar">
   <div class="brand" onclick="goHome()">WAVE FOOTBALL</div>
+  <button class="fav" onclick="openLeagueList()">리그</button>
   <div class="section-title">즐겨찾기</div>
   <button class="fav">🏴 프리미어리그</button><button class="fav">🇪🇸 라리가</button><button class="fav">🇮🇹 세리에 A</button><button class="fav">🇩🇪 분데스리가</button><button class="fav">🇰🇷 K리그1</button>
 </aside>
@@ -63,8 +64,8 @@ body{min-width:0;overflow-x:hidden}button,input{font:inherit}button{color:inheri
 </div>
 <script>
 const SHEET_ID="11FaYvh3o4v-qkKbaLWcUgQYAAeXidX0rx6m3NsnRnY8";
-const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스"};
-let players=[],stats=[],transfers=[],youth=[],searchType="all",currentPlayer=null;
+const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스",leagues:"리그"};
+let players=[],stats=[],transfers=[],youth=[],leagues=[],searchType="all",currentPlayer=null;
 const $=id=>document.getElementById(id);
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
 function val(o,names){for(const n of names)if(o[n]!==undefined&&String(o[n]).trim()!=="")return String(o[n]);return ""}
@@ -101,6 +102,7 @@ async function loadData(){
     loadStatsSheet(),
     loadSheet(SHEETS.transfers),
     loadSheet(SHEETS.youth)
+    loadSheet(SHEETS.leagues)
   ]);
   const names=["선수","스탯","이적","유스"];
   const values=[players,stats,transfers,youth];
@@ -108,7 +110,7 @@ async function loadData(){
     if(res.status==="fulfilled") values[i]=res.value;
     else console.error(names[i]+" 시트 불러오기 실패:",res.reason);
   });
-  [players,stats,transfers,youth]=values;
+[players,stats,transfers,youth,leagues]=values;
   const failed=results.map((r,i)=>r.status==="rejected"?names[i]:"").filter(Boolean);
   $("status").textContent=`Google Sheets 연결 · 리그 ${countUnique(players,["리그","리그명"])}개 · 클럽 ${countUnique(players,["팀","클럽명"])}팀 · 선수 ${players.length}명`;
   $("status").style.color=failed.length?"#e8c56a":"var(--good)";
@@ -290,7 +292,49 @@ function renderStats(p){
 }
 function renderTransfers(p){const rows=transfers.filter(r=>samePlayer(r,p));if(!rows.length)return '<div class="table-empty">이적 기록이 아직 없습니다.</div>';const headers=["합류일","이적 형태","이전 팀","이전 팀 국가","이적 팀","이적 팀 국가"];return table(headers,rows.map(r=>headers.map(h=>{const v=val(r,[h]);return h==="합류일"&&!v?"-":v;})))}
 function renderYouth(p){const rows=youth.filter(r=>samePlayer(r,p));if(!rows.length)return '<div class="table-empty">유스 경력이 아직 없습니다.</div>';const headers=["합류일","이전 팀","이전 팀 국가","이적 팀","이적 팀 국가"];return table(headers,rows.map(r=>headers.map(h=>{const v=val(r,[h]);return h==="합류일"&&!v?"-":v;})))}
-function openClub(club){
+function openLeagueList(){
+  const home=$("homeView"), detail=$("detail");
+  home.classList.add("hidden");
+  detail.classList.add("show");
+
+  detail.innerHTML=`
+    <h1>리그</h1>
+    <div class="results">
+      ${leagues.map((l,i)=>{
+        const name=val(l,["리그명"]);
+        const country=val(l,["국가"]);
+        const photo=val(l,["사진"]);
+        return `
+          <div class="result" onclick="openLeague('${esc(name)}')">
+            ${photo ? `<img class="result-photo" src="${esc(photo)}" alt="">` : ""}
+            <div>
+              <b>${esc(name)}</b>
+              <div class="result-meta">${esc(country)}</div>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function openLeague(league){
+  $("search").value=league;
+  searchType="team";
+  document.querySelectorAll(".type-btn").forEach(x=>{
+    x.classList.toggle("active",x.dataset.type==="team");
+  });
+
+  const found=players.filter(p=>{
+    return val(p,["리그","리그명"]).trim()===league.trim();
+  });
+
+  renderResults(found);
+  $("detail").classList.remove("show");
+  $("homeView").classList.remove("hidden");
+  window.scrollTo({top:0,behavior:"smooth"});
+}function openClub(club){
   if(!club)return;
   closeDetail();
   $("search").value=club;
