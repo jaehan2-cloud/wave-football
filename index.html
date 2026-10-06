@@ -108,13 +108,18 @@ function parseLeagueGviz(text){
   const a=text.indexOf("{"), b=text.lastIndexOf("}");
   if(a<0||b<0) throw new Error("리그 시트 응답을 읽을 수 없습니다.");
   const d=JSON.parse(text.slice(a,b+1));
-  return (d.table.rows||[]).slice(1).map(r=>{
+  return (d.table.rows||[]).map(r=>{
     const c=r.c||[];
-    return {
+    const row={
       "사진":cellValue(c[0]),
       "리그명":cellValue(c[1]),
       "국가":cellValue(c[2])
     };
+    return row;
+  }).filter(row=>{
+    const name=row["리그명"].trim();
+    const country=row["국가"].trim();
+    return !(name==="리그명" && country==="국가");
   });
 }
 
