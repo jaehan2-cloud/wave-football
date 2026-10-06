@@ -37,7 +37,7 @@ body{min-width:0;overflow-x:hidden}button,input{font:inherit}button{color:inheri
 .loading{color:var(--muted);padding:20px 0}.error{color:#ff7b7b;padding:20px 0}
 @media(max-width:1100px){.app{grid-template-columns:180px minmax(0,1fr) 180px}.center{padding:28px 24px}.player-info-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.app{grid-template-columns:1fr}.sidebar,.sidebar.right{display:none}.center{padding:22px 16px}.topline{height:0;margin-bottom:22px}.search-menu.show{grid-template-columns:repeat(2,1fr)}.detail-grid{grid-template-columns:1fr}.detail{padding:18px}}
-</style>
+.league-detail-photo{width:72px;height:72px;border-radius:12px;object-fit:contain;background:#252830;flex:none}.league-detail-section{margin-top:28px}.league-detail-section>.section-title{font-size:14px;color:#fff;font-weight:700;margin-bottom:12px}</style>
 </head>
 <body>
 <div class="app">
@@ -357,14 +357,47 @@ function openLeagueList(){
 }
 
 function openLeague(league){
-  $("search").value=league;
-  searchType="league";
-  document.querySelectorAll(".type-btn").forEach(x=>x.classList.toggle("active",x.dataset.type==="league"));
-  const q=league.trim().toLowerCase();
-  const found=players.filter(p=>String(val(p,["리그","리그명"])).trim().toLowerCase()===q);
-  renderResults(found);
-  $("detail").classList.remove("show");
-  $("homeView").classList.remove("hidden");
+  const leagueRow=leagues.find(l=>val(l,["리그명"]).trim()===league.trim());
+  const country=leagueRow ? val(leagueRow,["국가"]) : "";
+  const photo=leagueRow ? val(leagueRow,["사진"]) : "";
+
+  $("homeView").classList.add("hidden");
+  $("detail").classList.add("show");
+
+  const leagueClubs=[...new Set(
+    players
+      .filter(p=>val(p,["리그","리그명"]).trim()===league.trim())
+      .map(p=>val(p,["팀","클럽명"]).trim())
+      .filter(Boolean)
+  )].sort((a,b)=>a.localeCompare(b,"ko",{numeric:true,sensitivity:"base"}));
+
+  detail.innerHTML=`
+    <div class="page-title">
+      ${photo ? `<img class="league-detail-photo" src="${esc(photo)}" alt="">` : `<div class="league-detail-photo league-photo-empty">⚽</div>`}
+      <div>
+        <h1>${esc(league)}</h1>
+        <div class="result-meta">${esc(country)}</div>
+      </div>
+    </div>
+    <div class="league-detail-section">
+      <div class="section-title">소속 클럽</div>
+      <div class="results">
+        ${leagueClubs.length ? leagueClubs.map(club=>`
+          <div class="result league-club-result" data-club="${esc(club)}">
+            <div>
+              <div class="result-name">${esc(club)}</div>
+              <div class="result-meta">${esc(league)}</div>
+            </div>
+          </div>
+        `).join("") : '<div class="empty">등록된 클럽이 없습니다.</div>'}
+      </div>
+    </div>
+  `;
+
+  detail.querySelectorAll(".league-club-result").forEach(el=>{
+    el.addEventListener("click",()=>openClub(el.dataset.club));
+  });
+
   window.scrollTo({top:0,behavior:"smooth"});
 }
 function openClub(club){
