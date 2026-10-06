@@ -83,7 +83,7 @@ function parseGvizFixed(text, headers){
   const a=text.indexOf("{"), b=text.lastIndexOf("}");
   if(a<0||b<0) throw new Error("Google Sheets 응답을 읽을 수 없습니다.");
   const d=JSON.parse(text.slice(a,b+1));
-  return (d.table.rows||[]).map(r=>{
+  return (d.table.rows||[]).slice(1).map(r=>{
     const o={};
     headers.forEach((h,i)=>o[h]=r.c?.[i]?.v!=null?String(r.c[i].v):"");
     return o;
