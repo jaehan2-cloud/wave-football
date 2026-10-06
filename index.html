@@ -432,7 +432,7 @@ async function openLeague(league){
       <div class="section-title">소속 클럽 · ${leagueClubs.length}팀</div>
       <div class="results">
         ${leagueClubs.length ? leagueClubs.map(club=>`
-          <div class="result league-club-result" data-club="${esc(club.name)}">
+          <div class="result league-club-result" onclick="openClub('${esc(club.name)}')">
             <div>
               <div class="result-name">${esc(club.name)}</div>
               <div class="result-meta">${esc(club.league)}${club.country ? " · "+esc(club.country) : ""}</div>
@@ -442,10 +442,6 @@ async function openLeague(league){
       </div>
     </div>
   `;
-
-  detail.querySelectorAll(".league-club-result").forEach(el=>{
-    el.addEventListener("click",()=>openClub(el.dataset.club));
-  });
 
   window.scrollTo({top:0,behavior:"smooth"});
 }
