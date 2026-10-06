@@ -69,8 +69,8 @@ body{min-width:0;overflow-x:hidden}button,input{font:inherit}button{color:inheri
 </div>
 <script>
 const SHEET_ID="11FaYvh3o4v-qkKbaLWcUgQYAAeXidX0rx6m3NsnRnY8";
-const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스",leagues:"리그"};
-let players=[],stats=[],transfers=[],youth=[],leagues=[],searchType="all",currentPlayer=null;
+const SHEETS={players:"선수",stats:"스탯",transfers:"이적",youth:"유스",leagues:"리그",clubs:"클럽"};
+let players=[],stats=[],transfers=[],youth=[],leagues=[],clubs=[],searchType="all",currentPlayer=null;
 const $=id=>document.getElementById(id);
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
 function val(o,names){for(const n of names)if(o[n]!==undefined&&String(o[n]).trim()!=="")return String(o[n]);return ""}
@@ -134,6 +134,26 @@ async function loadLeaguesSheet(){
   return parseLeagueGviz(await r.text());
 }
 
+async function loadClubsSheet(){
+  const u=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?sheet=${encodeURIComponent(SHEETS.clubs)}&tqx=out:json`;
+  const r=await fetch(u);
+  if(!r.ok)throw new Error(`클럽 HTTP ${r.status}`);
+  const d=JSON.parse((await r.text()).replace(/^[^({]*/, "").replace(/;\s*$/, ""));
+  return (d.table.rows||[]).map(row=>{
+    const c=row.c||[];
+    return {
+      "클럽명":cellValue(c[0]),
+      "리그":cellValue(c[1]),
+      "국가":cellValue(c[2])
+    };
+  }).filter(row=>{
+    const name=row["클럽명"].trim();
+    const league=row["리그"].trim();
+    return !(name==="클럽명" && league==="리그");
+  });
+}
+
+
 async function loadData(){
   const results=await Promise.allSettled([
     loadSheet(SHEETS.players),
@@ -142,13 +162,13 @@ async function loadData(){
     loadSheet(SHEETS.youth),
     loadLeaguesSheet()
   ]);
-  const names=["선수","스탯","이적","유스","리그"];
+  const names=["선수","스탯","이적","유스","리그","클럽"];
   const values=[players,stats,transfers,youth,leagues];
   results.forEach((res,i)=>{
     if(res.status==="fulfilled") values[i]=res.value;
     else console.error(names[i]+" 시트 불러오기 실패:",res.reason);
   });
-  [players,stats,transfers,youth,leagues]=values;
+  [players,stats,transfers,youth,leagues,clubs]=values;
   const failed=results.map((r,i)=>r.status==="rejected"?names[i]:"").filter(Boolean);
   $("status").textContent=`Google Sheets 연결 · 리그 ${countUnique(players,["리그","리그명"])}개 · 클럽 ${countUnique(players,["팀","클럽명"])}팀 · 선수 ${players.length}명`;
   $("status").style.color=failed.length?"#e8c56a":"var(--good)";
@@ -361,49 +381,49 @@ function openLeagueList(){
 }
 
 function openLeague(league){
-  const leagueRow=leagues.find(l=>val(l,["리그명"]).trim()===league.trim());
-  const country=leagueRow ? val(leagueRow,["국가"]) : "";
-  const photo=leagueRow ? val(leagueRow,["사진"]) : "";
+  const row=leagues.find(l=>val(l,["리그명"]).trim()===String(league).trim());
+  if(!row)return;
 
-  $("homeView").classList.add("hidden");
-  $("detail").classList.add("show");
+  const country=val(row,["국가"]);
+  const photo=val(row,["사진"]);
 
-  const leagueClubs=[...new Set(
-    players
-      .filter(p=>val(p,["리그","리그명"]).trim()===league.trim())
-      .map(p=>val(p,["팀","클럽명"]).trim())
-      .filter(Boolean)
-  )].sort((a,b)=>a.localeCompare(b,"ko",{numeric:true,sensitivity:"base"}));
+  $("home").style.display="none";
+  $("detail").style.display="block";
 
-  detail.innerHTML=`
-    <div class="page-title">
-      ${photo ? `<img class="league-detail-photo" src="${esc(photo)}" alt="">` : `<div class="league-detail-photo league-photo-empty">⚽</div>`}
-      <div>
+  const leagueClubs=clubs
+    .filter(c=>val(c,["리그"]).trim()===String(league).trim())
+    .sort((a,b)=>val(a,["클럽명"]).localeCompare(val(b,["클럽명"]),"ko"));
+
+  $("detail").innerHTML=`
+    <div class="player-hero">
+      ${photo ? `<img class="player-photo league-detail-photo" src="${esc(photo)}" alt="">` : ""}
+      <div class="player-title">
         <h1>${esc(league)}</h1>
-        <div class="result-meta">${esc(country)}</div>
+        <div class="roman">${esc(country)}</div>
       </div>
     </div>
     <div class="league-detail-section">
-      <div class="section-title">소속 클럽</div>
+      <div class="section-title">소속 클럽 · ${leagueClubs.length}팀</div>
       <div class="results">
-        ${leagueClubs.length ? leagueClubs.map(club=>`
-          <div class="result league-club-result" data-club="${esc(club)}">
-            <div>
-              <div class="result-name">${esc(club)}</div>
-              <div class="result-meta">${esc(league)}</div>
+        ${leagueClubs.length ? leagueClubs.map(c=>{
+          const name=val(c,["클럽명"]);
+          const clubLeague=val(c,["리그"]);
+          const clubCountry=val(c,["국가"]);
+          return `
+            <div class="result" onclick="openClub('${esc(name)}')">
+              <div>
+                <b>${esc(name)}</b>
+                <div class="result-meta">${esc(clubLeague)} · ${esc(clubCountry)}</div>
+              </div>
             </div>
-          </div>
-        `).join("") : '<div class="empty">등록된 클럽이 없습니다.</div>'}
+          `;
+        }).join("") : `<div class="empty">이 리그에 등록된 클럽이 없습니다.</div>`}
       </div>
     </div>
   `;
-
-  detail.querySelectorAll(".league-club-result").forEach(el=>{
-    el.addEventListener("click",()=>openClub(el.dataset.club));
-  });
-
   window.scrollTo({top:0,behavior:"smooth"});
 }
+
 function openClub(club){
   if(!club)return;
   closeDetail();
