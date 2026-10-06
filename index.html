@@ -386,13 +386,14 @@ async function openLeague(league){
     leagueClubs=(d.table.rows||[]).map(row=>{
       const c=row.c||[];
       return {
-        name:c[0]?.v!=null ? String(c[0].v).trim() : "",
-        league:c[1]?.v!=null ? String(c[1].v).trim() : "",
-        country:c[2]?.v!=null ? String(c[2].v).trim() : ""
+        photo:c[0]?.v!=null ? String(c[0].v).trim() : "",
+        name:c[1]?.v!=null ? String(c[1].v).trim() : "",
+        league:c[2]?.v!=null ? String(c[2].v).trim() : "",
+        country:c[3]?.v!=null ? String(c[3].v).trim() : ""
       };
     }).filter(c=>
       c.name &&
-      c.name!=="클럽명" &&
+      c.name!=="팀명" &&
       c.league &&
       c.league!=="리그" &&
       c.league===league.trim()
@@ -433,6 +434,7 @@ async function openLeague(league){
       <div class="results">
         ${leagueClubs.length ? leagueClubs.map(club=>`
           <div class="result league-club-result" onclick="openClub('${esc(club.name)}')">
+            ${club.photo ? `<img class="result-photo" src="${esc(club.photo)}" alt="">` : ""}
             <div>
               <div class="result-name">${esc(club.name)}</div>
               <div class="result-meta">${esc(club.league)}${club.country ? " · "+esc(club.country) : ""}</div>
